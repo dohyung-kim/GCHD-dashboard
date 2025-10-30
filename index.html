@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Child Hazard Map</title>
+
+  <!-- MapLibre CSS -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+  <style>
+    html, body { margin: 0; height: 100%; width: 100%; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    #controls {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: rgba(255,255,255,0.95);
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-family: sans-serif;
+      z-index: 1;
+    }
+    select {
+      width: 250px;
+      padding: 5px;
+      font-size: 14px;
+    }
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 6px;
+      padding: 8px;
+      font-family: sans-serif;
+      font-size: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+    .color-box {
+      width: 18px;
+      height: 18px;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <strong>Indicator:</strong><br>
+  <select id="indicator-select">
+    <option value="riverine_floods">Children exposed to riverine floods</option>
+    <option value="coastal_floods">Children exposed to coastal floods</option>
+    <option value="agricultural_drought">Children exposed to agricultural drought</option>
+    <option value="meteorological_drought_spi">Children exposed to meteorological drought (SPI)</option>
+    <option value="heatwave_frequency">Children exposed to heatwave frequency</option>
+    <option value="heatwave_duration">Children exposed to heatwave duration</option>
+    <option value="heatwave_severity">Children exposed to heatwave severity</option>
+  </select>
+</div>
+
+<div id="map"></div>
+
+<div class="legend" id="legend">
+  <div><strong>Children exposed</strong></div>
+  <div class="legend-item"><div class="color-box" style="background:#08306b;"></div>Very High</div>
+  <div class="legend-item"><div class="color-box" style="background:#2171b5;"></div>High</div>
+  <div class="legend-item"><div class="color-box" style="background:#6baed6;"></div>Medium</div>
+  <div class="legend-item"><div class="color-box" style="background:#bdd7e7;"></div>Low</div>
+  <div class="legend-item"><div class="color-box" style="background:#eff3ff;"></div>Very Low</div>
+</div>
+
+<!-- MapLibre JS -->
+<script src="https://unpkg.com/maplibre-gl@3.6.0/dist/maplibre-gl.js"></script>
+
+<script>
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://demotiles.maplibre.org/style.json',
+  center: [0, 20],
+  zoom: 1.5,
+  attributionControl: true
+});
+
+// Load GeoJSON
+async function loadData() {
+  const response = await fetch('CCRI_P1_P2_format.geojson');
+  const geojson = await response.json();
+
+  map.on('load', () => {
+    map.addSource('countries', {
+      type: 'geojson',
+      data: geojson
+    });
+
+    map.addLayer({
+      id: 'country-fill',
+      type: 'fill',
+      source: 'countries',
+      paint: {
+        'fill-color': [
+          'interpolate',
+          ['linear'],
+          ['get', 'riverine_floods'],
+          0, '#eff3ff',
+          10000, '#bdd7e7',
+          100000, '#6baed6',
+          1000000, '#2171b5',
+          10000000, '#08306b'
+        ],
+        'fill-opacity': 0.8,
+        'fill-outline-color': '#ffffff'
+      }
+    });
+
+    map.addLayer({
+      id: 'country-borders',
+      type: 'line',
+      source: 'countries',
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 0.5
+      }
+    });
+
+    // Tooltip
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+
+    map.on('mousemove', 'country-fill', (e) => {
+      const feature = e.features[0];
+      const props = feature.properties;
+      const indicator = document.getElementById('indicator-select').value;
+      const value = props[indicator];
+      popup.setLngLat(e.lngLat)
+           .setHTML(`<b>${props.country_name}</b><br>${Number(value).toLocaleString()}`)
+           .addTo(map);
+    });
+
+    map.on('mouseleave', 'country-fill', () => popup.remove());
+
+    // Dropdown to change indicator
+    document.getElementById('indicator-select').addEventListener('change', (e) => {
+      const ind = e.target.value;
+      map.setPaintProperty('country-fill', 'fill-color', [
+        'interpolate',
+        ['linear'],
+        ['get', ind],
+        0, '#eff3ff',
+        10000, '#bdd7e7',
+        100000, '#6baed6',
+        1000000, '#2171b5',
+        10000000, '#08306b'
+      ]);
+    });
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
