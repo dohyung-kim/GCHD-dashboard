@@ -2,26 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>CCRI Dashboard Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNICEF Global Child Hazard Database (Beta)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
-    body { margin: 0; padding: 0; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    body { margin: 0; font-family: Arial, sans-serif; }
+    header {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      padding: 8px 16px;
+      border-bottom: 1px solid #ddd;
+      z-index: 2;
+    }
+    header img {
+      height: 50px;
+      margin-right: 12px;
+    }
+    header h1 {
+      font-size: 18px;
+      color: #0076ce;
+      margin: 0;
+      font-weight: normal;
+    }
+    #map { position: absolute; top: 80px; bottom: 0; width: 100%; }
     .menu {
       position: absolute;
-      top: 10px;
+      top: 90px;
       left: 10px;
       background: white;
       padding: 10px;
       border-radius: 8px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-      z-index: 1;
-      font-family: Arial, sans-serif;
+      z-index: 2;
+    }
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .legend div {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .legend span {
+      width: 20px;
+      height: 10px;
+      margin-right: 6px;
     }
   </style>
 </head>
 <body>
+
+<header>
+  <img src="unicef_GCHD.png" alt="UNICEF Logo" />
+  <h1>Global Child Hazard Database (Beta)</h1>
+</header>
 
 <div class="menu">
   <label for="indicator-select"><strong>Select Indicator:</strong></label><br/>
@@ -37,9 +79,13 @@
 </div>
 
 <div id="map"></div>
+<div class="legend" id="legend"></div>
 
 <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
 <script>
+  const breaks = [0, 1, 2, 4, 8];
+  const colors = ['#eff3ff', '#bdd7e7', '#6baed6', '#2171b5', '#08306b'];
+
   const map = new maplibregl.Map({
     container: 'map',
     style: 'https://demotiles.maplibre.org/style.json',
@@ -47,14 +93,20 @@
     zoom: 1.5
   });
 
+  function updateLegend() {
+    const legend = document.getElementById('legend');
+    legend.innerHTML = '<b>Indicator scale</b><br>';
+    for (let i = 0; i < colors.length; i++) {
+      legend.innerHTML += `<div><span style="background:${colors[i]}"></span>${breaks[i]}+</div>`;
+    }
+  }
+
   map.on('load', () => {
-    // Load GeoJSON from your repo
     map.addSource('countries', {
       type: 'geojson',
       data: 'CCRI_P1_P2_format.geojson'
     });
 
-    // Initial layer
     map.addLayer({
       id: 'country-fill',
       type: 'fill',
@@ -62,17 +114,13 @@
       paint: {
         'fill-color': [
           'interpolate', ['linear'], ['to-number', ['get', 'ccri']],
-          0, '#eff3ff',
-          2, '#bdd7e7',
-          4, '#6baed6',
-          6, '#2171b5',
-          8, '#08306b'
+          0, colors[0], 1, colors[1], 2, colors[2], 4, colors[3], 8, colors[4]
         ],
         'fill-opacity': 0.8
       }
     });
 
-    // Add borders
+    // Border lines
     map.addLayer({
       id: 'country-borders',
       type: 'line',
@@ -80,18 +128,34 @@
       paint: { 'line-color': '#fff', 'line-width': 0.5 }
     });
 
-    // When indicator changes
+    // Country labels with indicator value
+    map.addLayer({
+      id: 'country-labels',
+      type: 'symbol',
+      source: 'countries',
+      layout: {
+        'text-field': ['concat', ['get', 'adm0_name'], ': ', ['get', 'ccri']],
+        'text-size': 10,
+        'text-allow-overlap': false
+      },
+      paint: {
+        'text-color': '#ffffff',
+        'text-halo-color': '#000000',
+        'text-halo-width': 1.2
+      }
+    });
+
+    updateLegend();
+
+    // Dropdown change
     document.getElementById('indicator-select').addEventListener('change', (e) => {
       const ind = e.target.value;
       map.setPaintProperty('country-fill', 'fill-color', [
-        'interpolate',
-        ['linear'],
-        ['to-number', ['get', ind]],
-        0, '#eff3ff',
-        1, '#bdd7e7',
-        2, '#6baed6',
-        4, '#2171b5',
-        8, '#08306b'
+        'interpolate', ['linear'], ['to-number', ['get', ind]],
+        0, colors[0], 1, colors[1], 2, colors[2], 4, colors[3], 8, colors[4]
+      ]);
+      map.setLayoutProperty('country-labels', 'text-field', [
+        'concat', ['get', 'adm0_name'], ': ', ['get', ind]
       ]);
     });
   });
